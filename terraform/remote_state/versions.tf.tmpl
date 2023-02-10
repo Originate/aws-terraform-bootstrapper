@@ -1,0 +1,14 @@
+terraform {
+  required_version = \"$TERRAFORM_VERSION\"
+
+  required_providers {
+    aws = {
+      source  = \"hashicorp/aws\"
+      version = \"$AWS_PROVIDER_VERSION\"
+    }
+    local = {
+      source  = \"hashicorp/local\"
+      version = \"$LOCAL_VERSION\"
+    }
+  }
+}
