@@ -26,8 +26,8 @@ require() {
   fi
 }
 
-require 'jq --version' jq https://stedolan.github.io/jq/
-require 'curl --version' curl https://curl.se/
+require "jq --version" jq https://stedolan.github.io/jq/
+require "curl --version" curl https://curl.se/
 
 
 ### Check for existing ./terraform directory
@@ -99,8 +99,8 @@ TERRAFORM_VERSION="$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terra
 
 # Check that the correct version of Terraform is installed
 if [ "$INITIALIZE_TERRAFORM" = true ]; then
-  require 'local_version="$(terraform version -json | jq -r '.terraform_version')"' Terraform https://www.terraform.io/
-  if [ "$local_version" != "$TERRAFORM_VERSION" ]; then
+  require "local_version=\"\$(terraform version -json | jq -r '.terraform_version')\"" Terraform https://www.terraform.io/
+  if [ "${local_version:?}" != "$TERRAFORM_VERSION" ]; then
     echo "Wrong version of Terraform installed ($local_version). Upgrade to version $TERRAFORM_VERSION."
     exit 4
   fi
@@ -154,8 +154,7 @@ if [ "$MODIFY_GITIGNORE" = true ]; then
   GITIGNORE_PATH="$PROJECT_DIR/.gitignore"
 
   if [ -f "$GITIGNORE_PATH" ]; then
-    echo "$(awk 'NF {p=1; printf "%s",n; n=""; print; next}; p {n=n RS}' "$GITIGNORE_PATH")" > "$GITIGNORE_PATH"
-    echo >> "$GITIGNORE_PATH"
+    printf '%s\n\n' "$(awk 'NF {p=1; printf "%s",n; n=""; print; next}; p {n=n RS}' "$GITIGNORE_PATH")" > "$GITIGNORE_PATH"
   fi
 
   cat "$TEMPLATE_DIR/.gitignore" >> "$GITIGNORE_PATH"
