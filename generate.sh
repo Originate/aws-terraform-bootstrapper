@@ -237,6 +237,8 @@ fi
 ### Initialize Terraform configurations
 
 if [ "$INITIALIZE_TERRAFORM" = true ]; then
+  BACKEND_CONFIG_PATH="$TERRAFORM_DIR/config/backend_config.tfvars"
+
   # remote_state
   pushd remote_state > /dev/null
   printf "\nInitializing remote_state...\n"
@@ -249,14 +251,14 @@ if [ "$INITIALIZE_TERRAFORM" = true ]; then
   if [ "$CREATE_GLOBAL" = true ]; then
     pushd global > /dev/null
     printf "\nInitializing global...\n"
-    terraform init -input=false -backend-config="../config/backend_config.tfvars"
+    terraform init -input=false -backend-config="$BACKEND_CONFIG_PATH"
     popd > /dev/null
   fi
 
   # environment
   pushd "$ENVIRONMENT_DEST" > /dev/null
   printf "\nInitializing environment...\n"
-  terraform init -input=false -backend-config="../config/backend_config.tfvars"
+  terraform init -input=false -backend-config="$BACKEND_CONFIG_PATH"
   popd > /dev/null
 fi
 
