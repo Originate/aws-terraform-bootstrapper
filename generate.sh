@@ -90,10 +90,21 @@ prompt "AWS Region" AWS_REGION "${AWS_REGION:-${AWS_DEFAULT_REGION:-"us-east-1"}
 
 prompt_yes_no "Modify .gitignore?" MODIFY_GITIGNORE yes
 prompt_yes_no "Create 'global' configuration?" CREATE_GLOBAL yes
+
+if [ "$CREATE_GLOBAL" = true ]; then
+  prompt_yes_no "Disable 'default' workspace in 'environment' configuration?" DISABLE_DEFAULT_WORKSPACE no
+fi
+
 prompt_yes_no "Initialize Terraform configurations?" INITIALIZE_TERRAFORM no
 
 
 ### Setup
+
+get_provider_version() {
+  local provider="$1"
+
+  curl -s "https://registry.terraform.io/v1/providers/$provider" | jq -r '.version'
+}
 
 TERRAFORM_VERSION="$(curl -s https://checkpoint-api.hashicorp.com/v1/check/terraform | jq -r '.current_version')" \
 
@@ -106,8 +117,8 @@ if [ "$INITIALIZE_TERRAFORM" = true ]; then
   fi
 fi
 
-AWS_PROVIDER_VERSION="$(curl -s https://registry.terraform.io/v1/providers/hashicorp/aws | jq -r '.version')" \
-LOCAL_VERSION="$(curl -s https://registry.terraform.io/v1/providers/hashicorp/local | jq -r '.version')" \
+AWS_PROVIDER_VERSION="$(get_provider_version hashicorp/aws)"
+LOCAL_PROVIDER_VERSION="$(get_provider_version hashicorp/local)"
 
 mkdir -p "$TERRAFORM_DIR"
 pushd "$TERRAFORM_DIR" > /dev/null
@@ -119,18 +130,24 @@ export \
   AWS_REGION \
   TERRAFORM_VERSION \
   AWS_PROVIDER_VERSION \
-  LOCAL_VERSION
+  LOCAL_PROVIDER_VERSION
 
 
 ### Generate configurations
+
+convert_template() {
+  local file="$1"
+
+  eval "echo \"$(cat "$file")\""
+}
 
 copy_config() {
   local basename="$1"
   local destname="${2:-"$1"}"
 
   cp -R "$TEMPLATE_DIR/terraform/$basename" "$destname"
-  find "$destname" -type f -name '*.tmpl' -exec bash -c '
-    eval "echo \"$(cat "$0")\"" > "${0%.tmpl}"
+  find "$destname" -type f -name '*.tmpl' -exec bash -c "$(declare -f convert_template)"'
+    convert_template "$0" > "${0%.tmpl}"
     rm -f "$0"
   ' '{}' \;
 }
@@ -146,6 +163,20 @@ fi
 # environment
 ENVIRONMENT_DEST="$([ "$CREATE_GLOBAL" = true ] && echo "environment" || echo "${STACK//-/_}")"
 copy_config environment "$ENVIRONMENT_DEST"
+
+
+### Disable environment 'default' workspace
+
+if [ "${DISABLE_DEFAULT_WORKSPACE:-false}" = true ]; then
+  printf '\n%s\n' "$(cat "$TEMPLATE_DIR/terraform/addons/disable_default_workspace.tf")" >> "$ENVIRONMENT_DEST/main.tf"
+
+  NULL_PROVIDER_VERSION="$(get_provider_version hashicorp/null)"
+  export NULL_PROVIDER_VERSION
+
+  printf '%s\n' "$(sed '$d' "$ENVIRONMENT_DEST/versions.tf" | sed '$d')" > "$ENVIRONMENT_DEST/versions.tf"
+  convert_template "$TEMPLATE_DIR/terraform/addons/null_provider.tf.tmpl" | sed 's/^/    /' >> "$ENVIRONMENT_DEST/versions.tf"
+  printf '  }\n}\n' >> "$ENVIRONMENT_DEST/versions.tf"
+fi
 
 
 ### Append to .gitignore
