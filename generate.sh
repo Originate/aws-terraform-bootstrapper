@@ -95,6 +95,7 @@ if [ "$CREATE_GLOBAL" = true ]; then
   prompt_yes_no "Disable 'default' workspace in 'environment' configuration?" DISABLE_DEFAULT_WORKSPACE no
 fi
 
+prompt_yes_no "Include previous output lookup in 'environment' configuration?" INCLUDE_SELF_STATE no
 prompt_yes_no "Initialize Terraform configurations?" INITIALIZE_TERRAFORM no
 
 
@@ -176,6 +177,13 @@ if [ "${DISABLE_DEFAULT_WORKSPACE:-false}" = true ]; then
   printf '%s\n' "$(sed '$d' "$ENVIRONMENT_DEST/versions.tf" | sed '$d')" > "$ENVIRONMENT_DEST/versions.tf"
   convert_template "$TEMPLATE_DIR/terraform/addons/null_provider.tf.tmpl" | sed 's/^/    /' >> "$ENVIRONMENT_DEST/versions.tf"
   printf '  }\n}\n' >> "$ENVIRONMENT_DEST/versions.tf"
+fi
+
+
+### Enable Terraform state persistence
+
+if [ "$INCLUDE_SELF_STATE" = true ]; then
+  cp "$TEMPLATE_DIR/terraform/addons/remote_state.tf" "$ENVIRONMENT_DEST/"
 fi
 
 
