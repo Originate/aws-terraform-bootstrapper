@@ -92,6 +92,13 @@ prompt_yes_no "Modify .gitignore?" MODIFY_GITIGNORE yes
 prompt_yes_no "Create 'global' configuration?" CREATE_GLOBAL yes
 
 if [ "$CREATE_GLOBAL" = true ]; then
+  prompt_yes_no "Include AWS base components?" INCLUDE_AWS_BASE no
+
+  if [ "$INCLUDE_AWS_BASE" = true ]; then
+    prompt "Base Domain" BASE_DOMAIN
+    export BASE_DOMAIN
+  fi
+
   prompt_yes_no "Disable 'default' workspace in 'environment' configuration?" DISABLE_DEFAULT_WORKSPACE no
 fi
 
@@ -169,13 +176,13 @@ copy_config environment "$ENVIRONMENT_DEST"
 ### Disable environment 'default' workspace
 
 if [ "${DISABLE_DEFAULT_WORKSPACE:-false}" = true ]; then
-  printf '\n%s\n' "$(cat "$TEMPLATE_DIR/terraform/addons/disable_default_workspace.tf")" >> "$ENVIRONMENT_DEST/main.tf"
+  printf '\n%s\n' "$(cat "$TEMPLATE_DIR/terraform/addons/environment/disable_default_workspace.tf")" >> "$ENVIRONMENT_DEST/main.tf"
 
   NULL_PROVIDER_VERSION="$(get_provider_version hashicorp/null)"
   export NULL_PROVIDER_VERSION
 
   printf '%s\n' "$(sed '$d' "$ENVIRONMENT_DEST/versions.tf" | sed '$d')" > "$ENVIRONMENT_DEST/versions.tf"
-  convert_template "$TEMPLATE_DIR/terraform/addons/null_provider.tf.tmpl" | sed 's/^/    /' >> "$ENVIRONMENT_DEST/versions.tf"
+  convert_template "$TEMPLATE_DIR/terraform/addons/environment/null_provider.tf.tmpl" | sed 's/^/    /' >> "$ENVIRONMENT_DEST/versions.tf"
   printf '  }\n}\n' >> "$ENVIRONMENT_DEST/versions.tf"
 fi
 
@@ -183,7 +190,33 @@ fi
 ### Enable Terraform state persistence
 
 if [ "$INCLUDE_SELF_STATE" = true ]; then
-  cp "$TEMPLATE_DIR/terraform/addons/remote_state.tf" "$ENVIRONMENT_DEST/"
+  cp "$TEMPLATE_DIR/terraform/addons/environment/remote_state.tf" "$ENVIRONMENT_DEST/"
+fi
+
+
+### Generate AWS base components
+
+if [ "${INCLUDE_AWS_BASE:-false}" = true ]; then
+  # global
+  cp \
+    "$TEMPLATE_DIR/terraform/addons/global/aws.tf" \
+    "$TEMPLATE_DIR/terraform/addons/global/outputs.tf" \
+    global/
+
+  echo >> global/terraform.tfvars
+  convert_template "$TEMPLATE_DIR/terraform/addons/global/terraform.tfvars.tmpl" >> global/terraform.tfvars
+
+  echo >> global/variables.tf
+  cat "$TEMPLATE_DIR/terraform/addons/global/variables.tf" >> global/variables.tf
+
+  # environment
+  cp "$TEMPLATE_DIR/terraform/addons/environment/aws.tf" "$ENVIRONMENT_DEST/"
+
+  echo >> "$ENVIRONMENT_DEST/terraform.tfvars"
+  convert_template "$TEMPLATE_DIR/terraform/addons/environment/terraform.tfvars.tmpl" >> "$ENVIRONMENT_DEST/terraform.tfvars"
+
+  echo >> "$ENVIRONMENT_DEST/variables.tf"
+  cat "$TEMPLATE_DIR/terraform/addons/environment/variables.tf" >> "$ENVIRONMENT_DEST/variables.tf"
 fi
 
 
